@@ -3,13 +3,11 @@ import json
 import os
 from datetime import datetime
 
-# URL du webhook Discord (stockée dans les secrets GitHub, jamais dans le code)
 WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
 MEMOIRE_FILE = 'memoire.json'
 
 
 def charger_memoire():
-    """Charge les IDs des jeux déjà postés"""
     if os.path.exists(MEMOIRE_FILE):
         with open(MEMOIRE_FILE, 'r') as f:
             return json.load(f)
@@ -17,13 +15,11 @@ def charger_memoire():
 
 
 def sauvegarder_memoire(data):
-    """Sauvegarde les IDs des jeux postés"""
     with open(MEMOIRE_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
 
 def poster_webhook(titre, url, description, plateforme, valeur, thumbnail):
-    """Poste un message via webhook Discord"""
     payload = {
         "embeds": [{
             "title": f"🎁 {titre}",
@@ -38,7 +34,6 @@ def poster_webhook(titre, url, description, plateforme, valeur, thumbnail):
             "footer": {"text": "Traqueur Automatisé - Trouvé via GamerPower"}
         }]
     }
-
     response = requests.post(WEBHOOK_URL, json=payload)
     if response.status_code == 204:
         print(f"OK Message posté : {titre}")
@@ -49,7 +44,6 @@ def poster_webhook(titre, url, description, plateforme, valeur, thumbnail):
 
 
 def verifier_offres():
-    """Vérifie les nouvelles offres et les poste sur Discord"""
     if not WEBHOOK_URL:
         print("Erreur : DISCORD_WEBHOOK_URL non trouvée")
         return
@@ -61,7 +55,9 @@ def verifier_offres():
     try:
         reponse = requests.get(url, timeout=10)
         if reponse.status_code == 200:
-            for offre in reversed(reponse.json()[:5]):
+            # On prend TOUTES les offres, plus de limite [:5]
+            # On lit de la plus ancienne a la plus recente pour un ordre logique dans le chat
+            for offre in reversed(reponse.json()):
                 if offre['id'] not in deja_postes:
                     poster_webhook(offre['title'], offre['open_giveaway_url'],
                                    offre['description'], offre['platforms'],
