@@ -6,6 +6,9 @@ from datetime import datetime
 WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
 MEMOIRE_FILE = 'memoire.json'
 
+# Mots-cles qui indiquent un acces temporaire (on ne veut PAS ca)
+EXCLURE = ["free weekend", "free-to-play", "free to play", "trial", "beta", "demo", "playtest"]
+
 
 def charger_memoire():
     if os.path.exists(MEMOIRE_FILE):
@@ -19,24 +22,30 @@ def sauvegarder_memoire(data):
         json.dump(data, f, indent=2)
 
 
-def poster_webhook(titre, url, description, plateforme, valeur, thumbnail):
+def est_temporaire(offre):
+    texte = (offre.get('title', '') + ' ' + offre.get('description', '')).lower()
+    return any(mot in texte for mot in EXCLURE)
+
+
+def poster_webhook(offre):
     payload = {
         "embeds": [{
-            "title": f"🎁 {titre}",
-            "url": url,
-            "description": description[:300] + "...",
+            "title": f"🎁 {offre['title']}",
+            "url": offre['open_giveaway_url'],
+            "description": offre['description'][:300] + "...",
             "color": 65280,
-            "image": {"url": thumbnail},
+            "image": {"url": offre['thumbnail']},
             "fields": [
-                {"name": "Plateforme", "value": plateforme, "inline": True},
-                {"name": "Valeur d'origine", "value": valeur, "inline": True}
+                {"name": "Plateforme", "value": offre['platforms'], "inline": True},
+                {"name": "Valeur d'origine", "value": offre['worth'], "inline": True},
+                {"name": "Type", "value": offre.get('type', 'Game'), "inline": True}
             ],
             "footer": {"text": "Traqueur Automatisé - Trouvé via GamerPower"}
         }]
     }
     response = requests.post(WEBHOOK_URL, json=payload)
     if response.status_code == 204:
-        print(f"OK Message posté : {titre}")
+        print(f"OK Message posté : {offre['title']}")
         return True
     else:
         print(f"Erreur webhook : {response.status_code}")
@@ -50,19 +59,21 @@ def verifier_offres():
 
     memoire = charger_memoire()
     deja_postes = memoire['deja_postes']
-    url = "https://www.gamerpower.com/api/giveaways?type=game&sort-by=date"
+    # type=game.loot.dlc remonte jeux + loot (skins, monnaie) + DLC
+    url = "https://www.gamerpower.com/api/giveaways?type=game.loot.dlc&sort-by=date"
 
     try:
         reponse = requests.get(url, timeout=10)
         if reponse.status_code == 200:
-            # On prend TOUTES les offres, plus de limite [:5]
-            # On lit de la plus ancienne a la plus recente pour un ordre logique dans le chat
             for offre in reversed(reponse.json()):
-                if offre['id'] not in deja_postes:
-                    poster_webhook(offre['title'], offre['open_giveaway_url'],
-                                   offre['description'], offre['platforms'],
-                                   offre['worth'], offre['thumbnail'])
-                    deja_postes.append(offre['id'])
+                if offre['id'] in deja_postes:
+                    continue
+                if est_temporaire(offre):
+                    print(f"Ignoré (temporaire) : {offre['title']}")
+                    deja_postes.append(offre['id'])  # noté pour pas re-tester chaque fois
+                    continue
+                poster_webhook(offre)
+                deja_postes.append(offre['id'])
 
             memoire['deja_postes'] = deja_postes
             memoire['derniere_verification'] = datetime.now().isoformat()
