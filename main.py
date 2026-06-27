@@ -68,8 +68,8 @@ def verifier_offres():
 
     memoire = charger_memoire()
     deja_postes = memoire['deja_postes']
-    # On garde VOLONTAIREMENT la meme URL qu'avant pour ne pas fausser le diagnostic
-    url = "https://www.gamerpower.com/api/giveaways?type=game.loot.dlc&sort-by=date"
+    # URL corrigee : type=game (valeur valide et documentee chez GamerPower)
+    url = "https://www.gamerpower.com/api/giveaways?type=game&sort-by=date"
 
     reponse = requests.get(url, headers=HEADERS, timeout=20)
 
